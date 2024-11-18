@@ -10,7 +10,7 @@
 
 void* baker_actions();
 
-int mixer_id, pantry_id, refrigerator_id, bowl_id, spoon_id, oven_id;
+ int mixer_id, pantry_id, refrigerator_id[2], bowl_id, spoon_id, oven_id;
 
 struct sembuf lock = {0, -1, 0};  // P() operation
 struct sembuf unlock = {0, 1, 0}; // V() operation
@@ -22,7 +22,6 @@ void create_semaphores(){
     spoon_id = semget(IPC_PRIVATE, 1, IPC_CREAT | 0666);
     oven_id = semget(IPC_PRIVATE, 1, IPC_CREAT | 0666);
     pantry_id = semget(IPC_PRIVATE, PANTRY_INGREDIENTS, IPC_CREAT | 0666);
-    refrigerator_id = semget(IPC_PRIVATE, REFRIGERATOR_INGREDIENTS, IPC_CREAT | 0666);
 
     semctl(mixer_id, 0, SETVAL, 2); // Mixer = 2
     semctl(bowl_id, 0, SETVAL, 3);  // Bowl = 3
@@ -36,11 +35,14 @@ void create_semaphores(){
     }
 
     // create semaphores for ingredients in refrigerators
-    for (int i = 0; i < REFRIGERATOR_INGREDIENTS; i++) {
-        printf("refrigerator 1 ingredient %d\n", i+1);
-        // set value to 2 since there are two refrigerators, 1 ingredient in each
-        semctl(refrigerator_id, i, SETVAL, 2);
+    for (int frige = 0; frige < 2; frige++){
+        refrigerator_id[frige] = semget(IPC_PRIVATE, REFRIGERATOR_INGREDIENTS, IPC_CREAT | 0666);
+        for (int i = 0; i < REFRIGERATOR_INGREDIENTS; i ++){
+            printf("refrigerator %d ingredient %d\n", frige + 1, i + 1);
+            semctl(refrigerator_id[frige], i, SETVAL, 1);
+        }
     }
+    
 }
 
 // represent two refrigerators with ingredients
@@ -116,7 +118,10 @@ void cleanup_semaphores(){
     semctl(spoon_id, 0, IPC_RMID);
     semctl(oven_id, 0, IPC_RMID);
     semctl(pantry_id, 0, IPC_RMID);
-    semctl(refrigerator_id, 0, IPC_RMID);
+
+    for (int i = 0; i < 2; i++){
+        semctl(refrigerator_id[i], 0, IPC_RMID);
+    }
 }
 
 int main() {
