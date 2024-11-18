@@ -35,19 +35,20 @@ void create_semaphores(){
         semctl(pantry_id, i, SETVAL, 1);
     }
 
-    // create semaphores for ingredients in refrigerator
+    // create semaphores for ingredients in refrigerators
     for (int i = 0; i < REFRIGERATOR_INGREDIENTS; i++) {
-        printf("refrigerator ingredient %d\n", i+1);
-        semctl(refrigerator_id, i, SETVAL, 1);
+        printf("refrigerator 1 ingredient %d\n", i+1);
+        // set value to 2 since there are two refrigerators, 1 ingredient in each
+        semctl(refrigerator_id, i, SETVAL, 2);
     }
 }
 
 // represent two refrigerators with ingredients
 typedef struct{
     const char* ingredients[REFRIGERATOR_INGREDIENTS];
-} refridgerator_struct;
+} refrigerator_struct;
 
-refridgerator_struct fridge[2] = {{"Eggs", "Milk", "Butter"}, {"Eggs", "Milk", "Butter"}};
+refrigerator_struct fridge[2] = {{"Eggs", "Milk", "Butter"}, {"Eggs", "Milk", "Butter"}};
 
 // represent a pantry with ingredients
 typedef struct{
