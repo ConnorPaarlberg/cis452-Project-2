@@ -66,6 +66,8 @@ recipe list[] = {
     {"cinnamon_rolls", {"Flour", "Sugar", "Salt", "Cinnamon"}, {"Butter", "Eggs"}}
 };
 
+
+/*
 void num_bakers(){
     char input[100];
     pthread_t *baker;
@@ -98,7 +100,40 @@ void num_bakers(){
     }
     free(baker);
     free(baker_ids);
+
 }
+
+*/
+
+
+int num_bakers(pthread_t **bakers_ptr, int **baker_ids_ptr) {
+    char input[100];
+    printf("Enter the number of bakers: ");
+    fgets(input, sizeof(input), stdin);
+    int input_number = atoi(input);
+
+    // Allocate memory for baker threads and IDs
+    *bakers_ptr = (pthread_t *)malloc(input_number * sizeof(pthread_t));
+    *baker_ids_ptr = (int *)malloc(input_number * sizeof(int));
+
+    pthread_t *bakers = *bakers_ptr;
+    int *baker_ids = *baker_ids_ptr;
+
+    for (int i = 0; i < input_number; i++) {
+        baker_ids[i] = i + 1; // Assign unique baker ID
+        if (pthread_create(&bakers[i], NULL, baker_actions, &baker_ids[i]) != 0) {
+            perror("Failed to create baker thread");
+            free(bakers);
+            free(baker_ids);
+            exit(1);
+        }
+        printf("Baker %d created\n", i + 1);
+    }
+
+    return input_number; // Return the number of bakers
+}
+
+
 
 // TODO: fix null ingredient access (currently commented out in the ingredient retrival for loops)
 // TODO: unique color for each baker print statements
@@ -194,12 +229,41 @@ void cook_recipe(int recipe_index, int baker_id){
 }
 
 // TODO: fill out
-void ramsied(){
+//void ramsied(){
 
     // randomly select a baker through baker_id and ramsie
     // requirement is that the baker
     // drop all semaphores and recall baker_actions() to restart
+void ramsied(int num_bakers, pthread_t *bakers, int *baker_ids) {
+    // Randomly select a baker by their ID (1 to num_bakers)
+    int ramsied_baker_id = rand() % num_bakers + 1;
 
+    printf("\033[1;31mChef Ramsay has intervened! Baker %d must restart their tasks!\033[0m\n", ramsied_baker_id); //colored blue
+
+    // Drop semaphores held by the selected baker
+    semUnlock(mixer_id);
+    semUnlock(bowl_id);
+    semUnlock(spoon_id);
+    semUnlock(oven_id);
+    semUnlock(pantry_id);
+    semUnlock(refrigerator_id);
+
+    printf("\033[1;34mBaker %d's semaphores have been reset. Restarting their tasks...\033[0m\n", ramsied_baker_id); //colored blue
+
+    // Cancel the baker's existing thread
+    if (pthread_cancel(bakers[ramsied_baker_id - 1]) != 0) {
+        perror("Failed to cancel baker's thread\n");
+        return;
+    }
+
+    // Restart the baker's thread
+    if (pthread_create(&bakers[ramsied_baker_id - 1], NULL, baker_actions, &baker_ids[ramsied_baker_id - 1]) != 0) {
+        perror("Failed to restart baker's thread\n");
+        exit(1);
+    }
+
+    printf("\033[1;32mBaker %d has restarted their tasks!\033[0m\n", ramsied_baker_id); //colored green
+    
 }
 
 void cleanup_semaphores(){
@@ -211,6 +275,8 @@ void cleanup_semaphores(){
     semctl(refrigerator_id, 0, IPC_RMID);
 }
 
+
+/*
 int main() {
     create_semaphores();
     num_bakers();
@@ -218,4 +284,43 @@ int main() {
 
     cleanup_semaphores();
     return 0;
+
 }
+*/
+
+int main() {
+    pthread_t *bakers;
+    int *baker_ids;
+    int num_bakers_count;
+
+    // Initialize semaphores
+    create_semaphores();
+
+    // Get the number of bakers and create their threads
+    num_bakers_count = num_bakers(&bakers, &baker_ids);
+
+
+    // Trigger Ramsay's intervention
+    ramsied(num_bakers_count, bakers, baker_ids);
+
+    // Wait for all bakers to complete
+    for (int i = 0; i < num_bakers_count; i++) {
+        if (pthread_join(bakers[i], NULL) != 0) {
+            perror("Failed to join baker thread");
+            free(bakers);
+            free(baker_ids);
+            cleanup_semaphores();
+            exit(1);
+        }
+    }
+
+    // Free allocated memory
+    free(bakers);
+    free(baker_ids);
+
+    // Cleanup semaphores
+    cleanup_semaphores();
+
+    return 0;
+}
+
