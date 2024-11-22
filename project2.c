@@ -166,8 +166,8 @@ void gather_pantry_ingredients(int recipe_index, int baker_id){
         // get pantry ingredients
         for (int i = 0; i < PANTRY_INGREDIENTS; i++){
             if (list[recipe_index].pantry_ingredients[i] != NULL){
-                printf("Baker %d took %s from the pantry for the %s recipe\n", baker_id, list[recipe_index].pantry_ingredients[i], 
-                list[recipe_index].name);
+                printf("Baker %d took %s from the pantry for the %s recipe\n", 
+                baker_id, list[recipe_index].pantry_ingredients[i], list[recipe_index].name);
             }
             // simulate baker walking to take next ingredient. If no more ingredients, 
             // baker walks out of pantry 
