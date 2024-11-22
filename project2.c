@@ -15,6 +15,7 @@ void gather_pantry_ingredients(int, int);
 void gather_refrigerator_ingredients(int, int);
 void mix_ingredients(int, int);
 void cook_recipe(int, int);
+void ramsied(int num_bakers, pthread_t *bakers, int *baker_ids);
 
 int mixer_id, pantry_id, refrigerator_id_1, refrigerator_id_2, bowl_id, spoon_id, oven_id;
 
@@ -68,7 +69,7 @@ recipe list[] = {
     {"cinnamon_rolls", {"Flour", "Sugar", "Salt", "Cinnamon"}, {"Butter", "Eggs"}}
 };
 
-void num_bakers(){
+/*void num_bakers(){
     char input[100];
     pthread_t *baker;
     int *baker_ids;
@@ -100,6 +101,34 @@ void num_bakers(){
     }
     free(baker);
     free(baker_ids);
+}
+*/
+
+int num_bakers(pthread_t **bakers_ptr, int **baker_ids_ptr) {
+    char input[100];
+    printf("Enter the number of bakers: ");
+    fgets(input, sizeof(input), stdin);
+    int input_number = atoi(input);
+
+    // Allocate memory for baker threads and IDs
+    *bakers_ptr = (pthread_t *)malloc(input_number * sizeof(pthread_t));
+    *baker_ids_ptr = (int *)malloc(input_number * sizeof(int));
+
+    pthread_t *bakers = *bakers_ptr;
+    int *baker_ids = *baker_ids_ptr;
+
+    for (int i = 0; i < input_number; i++) {
+        baker_ids[i] = i + 1; // Assign unique baker ID
+        if (pthread_create(&bakers[i], NULL, baker_actions, &baker_ids[i]) != 0) {
+            perror("Failed to create baker thread");
+            free(bakers);
+            free(baker_ids);
+            exit(1);
+        }
+        printf("Baker %d created\n", i + 1);
+    }
+
+    return input_number; // Return the number of bakers
 }
 
 // TODO: unique color for each baker print statements
@@ -204,14 +233,58 @@ void cook_recipe(int recipe_index, int baker_id){
     semUnlock(oven_id);
 }
 
-// TODO: fill out
-void ramsied(){
+void* delayed_ramsied(void* args) {
+    struct {
+        int num_bakers;
+        pthread_t* bakers;
+        int* baker_ids;
+    } *ramsay_args = args;
 
-    // randomly select a baker through baker_id and ramsie
-    // requirement is that the baker
-    // drop all semaphores and recall baker_actions() to restart
+    srand(time(NULL));
+    int delay = rand() % 11 + 5;
+    printf("\033[1;31mChef Ramsay will intervene in %d seconds...\033[0m\n", delay);
 
+    sleep(delay);
+
+    ramsied(ramsay_args->num_bakers, ramsay_args->bakers, ramsay_args->baker_ids);
+
+    return NULL;
 }
+
+void ramsied(int num_bakers, pthread_t *bakers, int *baker_ids) {
+    // Randomly select a baker by their ID (1 to num_bakers)
+    srand(time(NULL));
+    int ramsied_baker_id = rand() % num_bakers + 1;
+
+    printf("\033[1;31mChef Ramsay has intervened! Baker %d must restart their tasks!\033[0m\n", ramsied_baker_id); //colored blue
+
+    // Drop semaphores held by the selected baker
+    semUnlock(mixer_id);
+    semUnlock(bowl_id);
+    semUnlock(spoon_id);
+    semUnlock(oven_id);
+    semUnlock(pantry_id);
+    semUnlock(refrigerator_id_2);
+
+    printf("\033[1;31mBaker %d's semaphores have been reset. Restarting their tasks...\033[0m\n", ramsied_baker_id); //colored blue
+
+    // Cancel the baker's existing thread
+    if (pthread_cancel(bakers[ramsied_baker_id - 1]) != 0) {
+        perror("Failed to cancel baker's thread\n");
+        return;
+    }
+
+    // Restart the baker's thread
+    if (pthread_create(&bakers[ramsied_baker_id - 1], NULL, baker_actions, &baker_ids[ramsied_baker_id - 1]) != 0) {
+        perror("Failed to restart baker's thread\n");
+        exit(1);
+    }
+
+    printf("\033[1;31mBaker %d has restarted their tasks!\033[0m\n", ramsied_baker_id); //colored green
+    
+}
+
+
 
 void cleanup_semaphores(){
     semctl(mixer_id, 0, IPC_RMID);
@@ -224,12 +297,62 @@ void cleanup_semaphores(){
 
 }
 
-int main() {
+/*int main() {
     create_semaphores();
     num_bakers();
     ramsied();
 
     printf("All Bakers have completed all recipes. Time to cleanup...\n");
     cleanup_semaphores();
+    return 0;
+}*/
+
+int main() {
+    pthread_t *bakers;
+    int *baker_ids;
+    int num_bakers_count;
+
+    create_semaphores();
+
+    num_bakers_count = num_bakers(&bakers, &baker_ids);
+
+    pthread_t ramsay_tid;
+    struct {
+        int num_bakers;
+        pthread_t* bakers;
+        int* baker_ids;
+    } ramsay_args = { num_bakers_count, bakers, baker_ids };
+
+    if (pthread_create(&ramsay_tid, NULL, delayed_ramsied, &ramsay_args) != 0) {
+        perror("Failed to create Ramsay thread");
+        free(bakers);
+        free(baker_ids);
+        cleanup_semaphores();
+        exit(1);
+    }
+
+    for (int i = 0; i < num_bakers_count; i++) {
+        if (pthread_join(bakers[i], NULL) != 0) {
+            perror("Failed to join baker thread");
+            free(bakers);
+            free(baker_ids);
+            cleanup_semaphores();
+            exit(1);
+        }
+    }
+
+    if (pthread_join(ramsay_tid, NULL) != 0) {
+        perror("Failed to join Ramsay thread");
+        free(bakers);
+        free(baker_ids);
+        cleanup_semaphores();
+        exit(1);
+    }
+
+    free(bakers);
+    free(baker_ids);
+
+    cleanup_semaphores();
+
     return 0;
 }
